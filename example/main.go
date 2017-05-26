@@ -53,7 +53,7 @@ func main() {
 	}
 
 	s.Handle(modbus.ReadCoils, modbus.NewReadHandler(handleCoils))
-	s.Handle(modbus.ReadHoldingRegisters, modbus.NewReadHandler(handleCoils))
+	s.Handle(modbus.ReadHoldingRegisters, modbus.NewReadHandler(handleRegisters))
 
 	s.Listen()
 }

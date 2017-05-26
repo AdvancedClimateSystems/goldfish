@@ -1,0 +1,15 @@
+language: go
+
+go:
+    - 1.8
+
+install:
+    - go get github.com/stretchr/testify/assert
+
+    # Move the code to the namespace advancedclimatesystems instead of
+    # AdvancedClimateSystems to prevent import problems.
+    - mkdir -p $HOME/gopath/src/github.com/advancedclimatesystems/
+    - mv $HOME/gopath/src/github.com/AdvancedClimateSystems/goldfish $HOME/gopath/src/github.com/advancedclimatesystems/
+    - cd $HOME/gopath/src/github.com/advancedclimatesystems/goldfish
+
+script: make test
