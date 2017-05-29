@@ -14,9 +14,9 @@ import (
 // The handler is called with 3 parameters: the unit/slave id, the number of
 // the first requested address and the total address requested.
 //
-// The handler must return a slice representing the status of the requested
+// The handler must return a slice representing the values of the requested
 // addresses like [0, 1, 0, 1, 0, 1].
-func handleCoils(unitID, start, quantity int) ([]int16, error) {
+func handleReadCoils(unitID, start, quantity int) ([]int16, error) {
 	coils := make([]int16, quantity)
 	for i := 0; i < quantity; i++ {
 		coils[i] = int16((i + start) % 2)
@@ -42,6 +42,17 @@ func handleRegisters(unitID, start, quantity int) ([]int16, error) {
 	return registers, nil
 }
 
+func handleWriteRegisters(unitID, start int, values []int16) error {
+	return nil
+}
+
+func handleWriteCoils(unitID, start int, values []int16) error {
+	if start == 1 {
+		return modbus.IllegalAddressError
+	}
+	return nil
+}
+
 func main() {
 	addr := flag.String("addr", ":502", "address to listen on.")
 	flag.Parse()
@@ -52,8 +63,10 @@ func main() {
 		log.Fatal(fmt.Sprintf("Failed to start Modbus server: %v", err))
 	}
 
-	s.Handle(modbus.ReadCoils, modbus.NewReadHandler(handleCoils))
+	s.Handle(modbus.ReadCoils, modbus.NewReadHandler(handleReadCoils))
 	s.Handle(modbus.ReadHoldingRegisters, modbus.NewReadHandler(handleRegisters))
+	s.Handle(modbus.WriteSingleCoil, modbus.NewWriteHandler(handleWriteCoils))
+	s.Handle(modbus.WriteSingleRegister, modbus.NewWriteHandler(handleWriteRegisters))
 
 	s.Listen()
 }

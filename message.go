@@ -32,36 +32,60 @@ const (
 	WriteMultipleRegisters
 )
 
-const (
-	// IllegalFunction is Modbus exception code 1.
-	IllegalFunction uint8 = iota + 1
+// Error represesents a Modbus protocol error.
+type Error struct {
+	// Code contains the Modbus exception code.
+	Code uint8
+	msg  string
+}
 
-	// IllegalAddress is Modbus exception code 2.
-	IllegalAddress
+func (e Error) Error() string {
+	return fmt.Sprintf("Modbus exception code: %d: %v", e.Code, e.msg)
+}
 
-	// IllegalDataValue is Modbus exception code 3.
-	IllegalDataValue
+var (
+	// IllegalFunctionError with exception code 1, is returned when the
+	// function received is not an allowable action fwith the slave.
+	IllegalFunctionError = Error{Code: 1, msg: "illegal function"}
 
-	// SlaveDeviceFailure is Modbus exception code 4.
-	SlaveDeviceFailure
+	// IllegalAddressError with exception code 2, is returned when the
+	// address received is not an allowable address fwith the slave.
+	IllegalAddressError = Error{Code: 2, msg: "illegal address"}
 
-	// Acknowledge is Modbus exception code 5.
-	Acknowledge
+	// IllegalDataValueError with exception code 3, is returned if the
+	// request contains an value that is not allowable fwith the slave.
+	IllegalDataValueError = Error{Code: 3, msg: "illegal data value"}
 
-	// SlaveDeviceBusy is Modbus exception code 6.
-	SlaveDeviceBusy
+	// SlaveDeviceFailureError with exception code 4, is returned when
+	// the server isn't able to handle the request.
+	SlaveDeviceFailureError = Error{Code: 4, msg: "slave device failure"}
 
-	// NegativeAcknowledge is Modbus exception code 7.
-	NegativeAcknowledge
+	// AcknowledgeError with exception code 5, is returned when the
+	// server has received the request successfully, but needs a long time
+	// to process the request.
+	AcknowledgeError = Error{Code: 5, msg: "acknowledge"}
 
-	// MemoryParityError is Modbus exception code 8.
-	MemoryParityError
+	// SlaveDeviceBusyError with exception 6, is returned when master is
+	// busy processing a long-running command.
+	SlaveDeviceBusyError = Error{Code: 6, msg: "slave device busy"}
 
-	// GatewayPathUnavailable is Modbus exception code 10.
-	GatewayPathUnavailable = 10
+	// NegativeAcknowledgeError with exception code 7, is returned for an
+	// unsuccessful programming request using function code 13 or 14.
+	NegativeAcknowledgeError = Error{Code: 7, msg: "negative acknowledge"}
 
-	// GatewayTargetDeviceFailedToRespond is Modbus exception code 11.
-	GatewayTargetDeviceFailedToRespond
+	// MemoryParityError with exception code 8 is returned to indicate that
+	// the extended file area failed to pass a consistency check. May only
+	// returned for requests with function code 20 or 21.
+	MemoryParityError = Error{Code: 8, msg: "memory parity error"}
+
+	// GatewayPathUnavailableError with exception code 10 indicates that
+	// the gateway was unable to allocate an internal communication path
+	// from the input port to the output port for processing the request.
+	GatewayPathUnavailableError = Error{Code: 10, msg: "gateway path unavailable"}
+
+	// GatewayTargetDeviceFailedToRespondError with exception code 11
+	// indicates that the device is not present on the network.
+	GatewayTargetDeviceFailedToRespondError = Error{Code: 11, msg: "gateway target device failed to respond"}
 )
 
 // MBAP is the Modbus Application Header. Only Modbus TCP/IP message have an
@@ -80,7 +104,7 @@ type MBAP struct {
 	UnitID uint8
 }
 
-// UnmarshalBinary unmarshals a binary represention of MBAP.
+// UnmarshalBinary unmarshals a binary representation of MBAP.
 func (m *MBAP) UnmarshalBinary(b []byte) error {
 	if len(b) != 7 {
 		return fmt.Errorf("failed to unmarshal byte slice to MBAP: byte slice has invalid length of %d", len(b))
@@ -125,7 +149,7 @@ type Request struct {
 	Data         []byte
 }
 
-// UnmarshalBinary unmarshals binary represention of Request.
+// UnmarshalBinary unmarshals binary representation of Request.
 func (r *Request) UnmarshalBinary(b []byte) error {
 	if err := r.MBAP.UnmarshalBinary(b[0:7]); err != nil {
 		return err
@@ -155,16 +179,25 @@ func NewResponse(r Request, data []byte) *Response {
 	}
 
 	resp.MBAP.Length = uint16(len(data) + 3)
+	if r.FunctionCode == WriteSingleCoil || r.FunctionCode == WriteSingleRegister {
+		resp.MBAP.Length = uint16(len(data) + 2)
+
+	}
+
 	return resp
 }
 
-// NewExceptionResponse creates a expection response.
-func NewExceptionResponse(r Request, code uint8) *Response {
+// NewErrorResponse creates a error response.
+func NewErrorResponse(r Request, err error) *Response {
 	resp := &Response{
 		MBAP:         r.MBAP,
 		FunctionCode: r.FunctionCode + 0x80,
-		Data:         []byte{byte(code)},
 		exception:    true,
+	}
+
+	resp.Data = []byte{5}
+	if err, ok := err.(Error); ok {
+		resp.Data = []byte{err.Code}
 	}
 
 	resp.MBAP.Length = 3
@@ -182,11 +215,12 @@ func (r *Response) MarshalBinary() ([]byte, error) {
 	data := []interface{}{
 		r.FunctionCode,
 	}
-	if !r.exception {
+
+	if !r.exception && r.FunctionCode != WriteSingleCoil && r.FunctionCode != WriteSingleRegister {
 		data = append(data, uint8(len(r.Data)))
 	}
-	data = append(data, r.Data)
 
+	data = append(data, r.Data)
 	for _, v := range data {
 		err := binary.Write(pdu, binary.BigEndian, v)
 		if err != nil {
