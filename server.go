@@ -41,7 +41,11 @@ func (s *Server) Listen() {
 }
 
 func (s *Server) handleConn(conn net.Conn) {
-	defer conn.Close()
+	defer func() {
+		if err := conn.Close(); err != nil {
+			log.Printf("Failed to  close connection with client: %v", err)
+		}
+	}()
 	r := bufio.NewReader(conn)
 
 	b, err := r.Peek(6)
@@ -60,14 +64,13 @@ func (s *Server) handleConn(conn net.Conn) {
 		return
 	}
 
-	fmt.Println(s.handlers)
 	h, ok := s.handlers[req.FunctionCode]
 	if ok {
 		h.ServeModbus(conn, req)
 		return
 	}
 
-	resp := NewExceptionResponse(req, 0x1)
+	resp := NewErrorResponse(req, IllegalFunctionError)
 	data, err := resp.MarshalBinary()
 	if err != nil {
 		panic(err)

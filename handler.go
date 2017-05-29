@@ -32,7 +32,7 @@ func (h ReadHandler) ServeModbus(w io.Writer, req Request) {
 
 	values, err := h.handle(int(req.UnitID), start, quantity)
 	if err != nil {
-		respond(w, NewExceptionResponse(req, SlaveDeviceFailure))
+		respond(w, NewErrorResponse(req, err))
 		return
 	}
 
@@ -54,7 +54,7 @@ func (h ReadHandler) ServeModbus(w io.Writer, req Request) {
 
 	for _, v := range data {
 		if err := binary.Write(buf, binary.BigEndian, v); err != nil {
-			respond(w, NewExceptionResponse(req, SlaveDeviceFailure))
+			respond(w, NewErrorResponse(req, SlaveDeviceFailureError))
 			return
 		}
 	}
@@ -107,4 +107,49 @@ func reduce(values []int16) []int8 {
 	}
 
 	return reduced
+}
+
+// WriteHandler can be used to respond on Modbus request with function codes
+// 5 and 6.
+type WriteHandler struct {
+	handler func(unitID, start int, values []int16) error
+}
+
+// NewWriteHandler creates a new WriteHandler.
+func NewWriteHandler(h func(unitID, start int, values []int16) error) *WriteHandler {
+	return &WriteHandler{
+		handler: h,
+	}
+}
+
+// ServeModbus writes a Modbus response.
+func (h WriteHandler) ServeModbus(w io.Writer, req Request) {
+	var err error
+	var resp *Response
+	start := int(binary.BigEndian.Uint16(req.Data[:2]))
+
+	switch req.FunctionCode {
+	case WriteSingleCoil:
+		v := []int16{int16(binary.BigEndian.Uint16(req.Data[2:4]))}
+		if v[0] != 0 {
+			v[0] = 1
+		}
+		err = h.handler(int(req.UnitID), start, v)
+		if err == nil {
+			resp = NewResponse(req, req.Data)
+		}
+	case WriteSingleRegister:
+		v := []int16{int16(binary.BigEndian.Uint16(req.Data[2:4]))}
+		err = h.handler(int(req.UnitID), start, v)
+		if err == nil {
+			resp = NewResponse(req, req.Data)
+		}
+	}
+
+	if err != nil {
+		respond(w, NewErrorResponse(req, err))
+		return
+	}
+
+	respond(w, resp)
 }
