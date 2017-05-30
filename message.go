@@ -143,6 +143,7 @@ func (m *MBAP) MarshalBinary() ([]byte, error) {
 
 // Request is a Modbus request.
 type Request struct {
+	// Request is a Modbus request.
 	MBAP
 
 	FunctionCode uint8
