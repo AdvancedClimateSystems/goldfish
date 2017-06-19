@@ -46,9 +46,8 @@ func (h ReadHandler) ServeModbus(w io.Writer, req Request) {
 			data = append(data, v)
 		}
 	default:
-		for i := len(values) - 1; i >= 0; i-- {
-			data = append(data, values[i])
-
+		for _, v := range values {
+			data = append(data, v)
 		}
 	}
 
