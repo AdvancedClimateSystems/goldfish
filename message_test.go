@@ -6,6 +6,27 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TesTValue(t *testing.T) {
+	tests := []struct {
+		value    int
+		expected []byte
+	}{
+		{19, []byte{0x0, 0x13}},
+		{-128, []byte{0xff, 0x80}},
+		{-2391, []byte{0xf6, 0xa9}},
+		{14459, []byte{0x38, 0x7b}},
+	}
+
+	for _, test := range tests {
+		rv, err := NewValue(test.value)
+		assert.Nil(t, err)
+
+		bytes, err := rv.MarshalBinary()
+		assert.Nil(t, err)
+		assert.Equal(t, test.expected, bytes)
+	}
+}
+
 func TestMBAP(t *testing.T) {
 	tests := []struct {
 		mbap MBAP

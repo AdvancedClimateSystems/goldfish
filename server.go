@@ -86,7 +86,6 @@ func (s *Server) readMessage(r *bufio.Reader) ([]byte, error) {
 	}
 
 	return buf, nil
-
 }
 
 func (s *Server) executeAndRespond(conn io.Writer, req *Request) error {

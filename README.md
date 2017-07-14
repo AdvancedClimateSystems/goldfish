@@ -3,7 +3,7 @@
 
 # Goldfish
 
-Goldfish is a Go package for creating Modbus servers. See
+Goldfish is a Go package for creating Modbus TCP servers. See
 [example/main.go][example] for an example.
 
 ## License
