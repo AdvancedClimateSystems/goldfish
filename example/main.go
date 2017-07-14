@@ -16,10 +16,15 @@ import (
 //
 // The handler must return a slice representing the values of the requested
 // addresses like [0, 1, 0, 1, 0, 1].
-func handleReadCoils(unitID, start, quantity int) ([]int16, error) {
-	coils := make([]int16, quantity)
+func handleReadCoils(unitID, start, quantity int) ([]modbus.Value, error) {
+	coils := make([]modbus.Value, quantity)
 	for i := 0; i < quantity; i++ {
-		coils[i] = int16((i + start) % 2)
+		v, err := modbus.NewValue((i + start) % 2)
+		if err != nil {
+			return coils, modbus.SlaveDeviceFailureError
+		}
+
+		coils[i] = v
 	}
 
 	return coils, nil
@@ -33,20 +38,25 @@ func handleReadCoils(unitID, start, quantity int) ([]int16, error) {
 //
 // The handler must return a slice with the values of the registers like
 // [31, 298, 1999].
-func handleRegisters(unitID, start, quantity int) ([]int16, error) {
-	registers := make([]int16, quantity)
+func handleRegisters(unitID, start, quantity int) ([]modbus.Value, error) {
+	registers := make([]modbus.Value, quantity)
 	for i := 0; i <= quantity; i++ {
-		registers[i] = int16(i)
+		v, err := modbus.NewValue(i)
+		if err != nil {
+			return registers, modbus.SlaveDeviceFailureError
+		}
+
+		registers[i] = v
 	}
 
 	return registers, nil
 }
 
-func handleWriteRegisters(unitID, start int, values []int16) error {
+func handleWriteRegisters(unitID, start int, values []modbus.Value) error {
 	return nil
 }
 
-func handleWriteCoils(unitID, start int, values []int16) error {
+func handleWriteCoils(unitID, start int, values []modbus.Value) error {
 	if start == 1 {
 		return modbus.IllegalAddressError
 	}

@@ -88,6 +88,57 @@ var (
 	GatewayTargetDeviceFailedToRespondError = Error{Code: 11, msg: "gateway target device failed to respond"}
 )
 
+// Value is a value an integer ranging from range of -32768 through 65535.
+type Value struct {
+	v int
+}
+
+// NewValue creates a Value. It returns an error when given value is outside
+// range of -32768 through 65535.
+func NewValue(v int) (Value, error) {
+	var value Value
+
+	if err := value.Set(v); err != nil {
+		return value, err
+	}
+
+	return value, nil
+}
+
+// Set sets the value. It returns an error when given value is outside range of
+// -32768 through 65535.
+func (v *Value) Set(value int) error {
+	if value < -32768 || value > 65535 {
+		return fmt.Errorf("%d doesn't fit in 16 bytes", v)
+	}
+
+	v.v = value
+	return nil
+}
+
+// Get returns the value.
+func (v Value) Get() int {
+	return v.v
+}
+
+// MarshalBinary marshals a Value into byte slice with length of 2
+// bytes.
+func (v Value) MarshalBinary() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	var value interface{}
+	if v.v < 0 {
+		value = int16(v.v)
+	} else {
+		value = uint16(v.v)
+	}
+
+	if err := binary.Write(buf, binary.BigEndian, value); err != nil {
+		return buf.Bytes(), fmt.Errorf("failed to marshal ResponseValue: %v", err)
+	}
+
+	return buf.Bytes(), nil
+}
+
 // MBAP is the Modbus Application Header. Only Modbus TCP/IP message have an
 // MBAP header. The MBAP header has 4 fields with a total length of 7 bytes.
 type MBAP struct {
