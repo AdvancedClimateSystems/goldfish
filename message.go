@@ -268,7 +268,7 @@ func (r *Response) MarshalBinary() ([]byte, error) {
 		r.FunctionCode,
 	}
 
-	if !r.exception && r.FunctionCode != WriteSingleCoil && r.FunctionCode != WriteSingleRegister {
+	if !r.exception && r.FunctionCode != WriteSingleCoil && r.FunctionCode != WriteSingleRegister && r.FunctionCode != WriteMultipleRegisters {
 		data = append(data, uint8(len(r.Data)))
 	}
 

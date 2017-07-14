@@ -127,30 +127,78 @@ func NewWriteHandler(h WriteHandlerFunc) *WriteHandler {
 func (h WriteHandler) ServeModbus(w io.Writer, req Request) {
 	var err error
 	var resp *Response
+	var values []Value
 	start := int(binary.BigEndian.Uint16(req.Data[:2]))
 
-	v, err := NewValue(int(binary.BigEndian.Uint16(req.Data[2:4])))
-	if err != nil {
-		respond(w, NewErrorResponse(req, IllegalDataValueError))
-		return
+	switch req.FunctionCode {
+	case WriteSingleCoil:
+		values, err = h.handleWriteSingleCoil(req)
+	case WriteSingleRegister:
+		values, err = h.handleWriteSingleRegister(req)
+	case WriteMultipleRegisters:
+		values, err = h.handleWriteMultipleRegisters(req)
 	}
-
-	if req.FunctionCode == WriteSingleCoil {
-		if v.Get() != 0 {
-			if err := v.Set(1); err != nil {
-				respond(w, NewErrorResponse(req, IllegalDataValueError))
-				return
-			}
-		}
-	}
-
-	err = h.handler(int(req.UnitID), start, []Value{v})
 
 	if err != nil {
 		respond(w, NewErrorResponse(req, err))
 		return
 	}
 
-	resp = NewResponse(req, req.Data)
+	err = h.handler(int(req.UnitID), start, values)
+
+	if err != nil {
+		respond(w, NewErrorResponse(req, err))
+		return
+	}
+
+	resp = NewResponse(req, req.Data[0:4])
 	respond(w, resp)
+}
+
+func (h WriteHandler) handleWriteSingleCoil(req Request) ([]Value, error) {
+	v, err := NewValue(int(binary.BigEndian.Uint16(req.Data[2:4])))
+	values := []Value{v}
+
+	if err != nil {
+		return values, IllegalDataValueError
+	}
+	if v.Get() != 0 {
+		if err := v.Set(1); err != nil {
+			return values, IllegalDataValueError
+		}
+	}
+
+	return values, nil
+}
+
+func (h WriteHandler) handleWriteSingleRegister(req Request) ([]Value, error) {
+	v, err := NewValue(int(binary.BigEndian.Uint16(req.Data[2:4])))
+	values := []Value{v}
+
+	if err != nil {
+		return values, IllegalDataValueError
+	}
+
+	return values, nil
+}
+
+func (h WriteHandler) handleWriteMultipleRegisters(req Request) ([]Value, error) {
+	quantity := int(binary.BigEndian.Uint16(req.Data[2:4]))
+	values := []Value{}
+
+	offset := 5
+	if len(req.Data) != offset+(quantity*2) {
+		return values, IllegalDataValueError
+	}
+
+	for i := 0; i <= quantity; i += 2 {
+		v, err := NewValue(int(binary.BigEndian.Uint16(req.Data[offset+i : offset+i+2])))
+		if err != nil {
+			return values, IllegalDataValueError
+		}
+
+		values = append(values, v)
+	}
+
+	return values, nil
 }
