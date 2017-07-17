@@ -53,6 +53,10 @@ func handleRegisters(unitID, start, quantity int) ([]modbus.Value, error) {
 }
 
 func handleWriteRegisters(unitID, start int, values []modbus.Value) error {
+	for i, value := range values {
+		fmt.Printf("[%d]: %d\n", i+start, value.Get())
+	}
+
 	return nil
 }
 
@@ -77,6 +81,7 @@ func main() {
 	s.Handle(modbus.ReadHoldingRegisters, modbus.NewReadHandler(handleRegisters))
 	s.Handle(modbus.WriteSingleCoil, modbus.NewWriteHandler(handleWriteCoils, modbus.Signed))
 	s.Handle(modbus.WriteSingleRegister, modbus.NewWriteHandler(handleWriteRegisters, modbus.Signed))
+	s.Handle(modbus.WriteMultipleRegisters, modbus.NewWriteHandler(handleWriteRegisters, modbus.Signed))
 
 	s.Listen()
 }

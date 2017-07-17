@@ -3,6 +3,7 @@ package modbus
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 )
 
@@ -26,7 +27,7 @@ const (
 	WriteSingleRegister
 
 	// WriteMultipleCoils is Modbus function code 15.
-	WriteMultipleCoils = 15
+	WriteMultipleCoils = 15 + 1
 
 	// WriteMultipleRegisters is Modbus function code 16.
 	WriteMultipleRegisters
@@ -109,7 +110,7 @@ func NewValue(v int) (Value, error) {
 // -32768 through 65535.
 func (v *Value) Set(value int) error {
 	if value < -32768 || value > 65535 {
-		return fmt.Errorf("%d doesn't fit in 16 bytes", v)
+		return fmt.Errorf("%d doesn't fit in 16 bytes", value)
 	}
 
 	v.v = value
@@ -117,13 +118,13 @@ func (v *Value) Set(value int) error {
 }
 
 // Get returns the value.
-func (v Value) Get() int {
+func (v *Value) Get() int {
 	return v.v
 }
 
 // MarshalBinary marshals a Value into byte slice with length of 2
 // bytes.
-func (v Value) MarshalBinary() ([]byte, error) {
+func (v *Value) MarshalBinary() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	var value interface{}
 	if v.v < 0 {
@@ -137,6 +138,20 @@ func (v Value) MarshalBinary() ([]byte, error) {
 	}
 
 	return buf.Bytes(), nil
+}
+
+// UnmarshalBinary value from a byte slice.
+func (v *Value) UnmarshalBinary(d []byte, s Signedness) error {
+	if len(d) != 2 {
+		return errors.New("can't unmarshal value: byte slice isn't of length 2")
+	}
+
+	v.v = int(int16(binary.BigEndian.Uint16(d)))
+	if s == Unsigned {
+		v.v = int(binary.BigEndian.Uint16(d))
+	}
+
+	return nil
 }
 
 // MBAP is the Modbus Application Header. Only Modbus TCP/IP message have an
@@ -231,9 +246,9 @@ func NewResponse(r Request, data []byte) *Response {
 	}
 
 	resp.MBAP.Length = uint16(len(data) + 3)
-	if r.FunctionCode == WriteSingleCoil || r.FunctionCode == WriteSingleRegister {
+	switch r.FunctionCode {
+	case WriteSingleCoil, WriteSingleRegister, WriteMultipleRegisters:
 		resp.MBAP.Length = uint16(len(data) + 2)
-
 	}
 
 	return resp
@@ -268,8 +283,11 @@ func (r *Response) MarshalBinary() ([]byte, error) {
 		r.FunctionCode,
 	}
 
-	if !r.exception && r.FunctionCode != WriteSingleCoil && r.FunctionCode != WriteSingleRegister {
-		data = append(data, uint8(len(r.Data)))
+	switch r.FunctionCode {
+	case ReadCoils, ReadDiscreteInputs, ReadHoldingRegisters, ReadInputRegisters:
+		if !r.exception {
+			data = append(data, uint8(len(r.Data)))
+		}
 	}
 
 	data = append(data, r.Data)

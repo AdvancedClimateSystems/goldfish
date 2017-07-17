@@ -2,6 +2,7 @@ package modbus
 
 import (
 	"encoding/binary"
+	"fmt"
 	"io"
 	"log"
 )
@@ -142,37 +143,89 @@ func NewWriteHandler(h WriteHandlerFunc, s Signedness) *WriteHandler {
 func (h WriteHandler) ServeModbus(w io.Writer, req Request) {
 	var err error
 	var resp *Response
+	var values []Value
 	start := int(binary.BigEndian.Uint16(req.Data[:2]))
 
-	var data int
-	if h.signedness == Unsigned {
-		data = int(binary.BigEndian.Uint16(req.Data[2:4]))
-	} else {
-		data = int(int16(binary.BigEndian.Uint16(req.Data[2:4])))
+	switch req.FunctionCode {
+	case WriteSingleCoil:
+		values, err = h.handleWriteSingleCoil(req)
+	case WriteSingleRegister:
+		values, err = h.handleWriteSingleRegister(req)
+	case WriteMultipleRegisters:
+		values, err = h.handleWriteMultipleRegisters(req)
 	}
-
-	v, err := NewValue(data)
-	if err != nil {
-		respond(w, NewErrorResponse(req, IllegalDataValueError))
-		return
-	}
-
-	if req.FunctionCode == WriteSingleCoil {
-		if v.Get() != 0 {
-			if err := v.Set(1); err != nil {
-				respond(w, NewErrorResponse(req, IllegalDataValueError))
-				return
-			}
-		}
-	}
-
-	err = h.handler(int(req.UnitID), start, []Value{v})
 
 	if err != nil {
 		respond(w, NewErrorResponse(req, err))
 		return
 	}
 
-	resp = NewResponse(req, req.Data)
+	err = h.handler(int(req.UnitID), start, values)
+
+	if err != nil {
+		respond(w, NewErrorResponse(req, err))
+		return
+	}
+
+	resp = NewResponse(req, req.Data[0:4])
 	respond(w, resp)
+}
+
+func (h WriteHandler) handleWriteSingleCoil(req Request) ([]Value, error) {
+	var v Value
+	values := make([]Value, 1)
+	if err := v.UnmarshalBinary(req.Data[2:4], Unsigned); err != nil {
+		return values, fmt.Errorf("failed to hande write single coil request: %v", err)
+	}
+
+	if v.Get() != 0 {
+		if err := v.Set(1); err != nil {
+			return values, IllegalDataValueError
+		}
+	}
+	values[0] = v
+
+	return values, nil
+}
+
+func (h WriteHandler) handleWriteSingleRegister(req Request) ([]Value, error) {
+	var v Value
+	if err := v.UnmarshalBinary(req.Data[2:4], h.signedness); err != nil {
+		return []Value{}, fmt.Errorf("failed to hande write single register request: %v", err)
+	}
+	return []Value{v}, nil
+}
+
+func (h WriteHandler) handleWriteMultipleRegisters(req Request) ([]Value, error) {
+	quantity := int(binary.BigEndian.Uint16(req.Data[2:4]))
+	values := []Value{}
+
+	// The byte slice request.Data follows this format:
+	//
+	// ================ ===============
+	// Field            Length (bytes)
+	// ================ ===============
+	// Starting Address 2
+	// Quantity         2
+	// Byte count       1
+	// Values           n
+	// ================ ===============
+	//
+	// The values are prepended with 5 bytes of meta data.
+	// Every value is 2 bytes long.
+	offset := 5
+	if len(req.Data) != offset+(quantity*2) {
+		return values, IllegalDataValueError
+	}
+
+	for i := 0; i < quantity*2; i += 2 {
+		var v Value
+		if err := v.UnmarshalBinary(req.Data[offset+i:offset+i+2], h.signedness); err != nil {
+			return values, fmt.Errorf("failed to hande write multiple registers request: %v", err)
+		}
+
+		values = append(values, v)
+	}
+
+	return values, nil
 }
