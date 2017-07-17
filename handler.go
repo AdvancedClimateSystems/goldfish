@@ -200,6 +200,19 @@ func (h WriteHandler) handleWriteMultipleRegisters(req Request) ([]Value, error)
 	quantity := int(binary.BigEndian.Uint16(req.Data[2:4]))
 	values := []Value{}
 
+	// The byte slice request.Data follows this format:
+	//
+	// ================ ===============
+	// Field            Length (bytes)
+	// ================ ===============
+	// Starting Address 2
+	// Quantity         2
+	// Byte count       1
+	// Values           n
+	// ================ ===============
+	//
+	// The values are prepended with 5 bytes of meta data.
+	// Every value is 2 bytes long.
 	offset := 5
 	if len(req.Data) != offset+(quantity*2) {
 		return values, IllegalDataValueError
