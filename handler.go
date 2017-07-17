@@ -2,8 +2,22 @@ package modbus
 
 import (
 	"encoding/binary"
+	"fmt"
 	"io"
 	"log"
+)
+
+// Signedness controls the signedness of values for Writehandler's. A value can
+// be unsigned (capabale of representing only non-negative integers) or signed
+// (capable of representing negative integers as well).
+type Signedness int
+
+const (
+	// Unsigned set signedness to unsigned.
+	Unsigned Signedness = iota
+
+	// Signed sets signedness to signed.
+	Signed
 )
 
 // A Handler responds to a Modbus request.
@@ -16,7 +30,7 @@ type Handler interface {
 type ReadHandlerFunc func(unitID, start, quantity int) ([]Value, error)
 
 // ReadHandler can be used to respond on Modbus request with function codes
-// 1,2, 3 and 4.
+// 1, 2, 3 and 4.
 type ReadHandler struct {
 	handle ReadHandlerFunc
 }
@@ -113,17 +127,19 @@ type WriteHandlerFunc func(unitID, start int, values []Value) error
 // WriteHandler can be used to respond on Modbus request with function codes
 // 5 and 6.
 type WriteHandler struct {
-	handler WriteHandlerFunc
+	handler    WriteHandlerFunc
+	signedness Signedness
 }
 
 // NewWriteHandler creates a new WriteHandler.
-func NewWriteHandler(h WriteHandlerFunc) *WriteHandler {
+func NewWriteHandler(h WriteHandlerFunc, s Signedness) *WriteHandler {
 	return &WriteHandler{
-		handler: h,
+		handler:    h,
+		signedness: s,
 	}
 }
 
-// ServeModbus writes a Modbus response.
+// ServeModbus handles a Modbus request and returns a response.
 func (h WriteHandler) ServeModbus(w io.Writer, req Request) {
 	var err error
 	var resp *Response
@@ -156,30 +172,28 @@ func (h WriteHandler) ServeModbus(w io.Writer, req Request) {
 }
 
 func (h WriteHandler) handleWriteSingleCoil(req Request) ([]Value, error) {
-	v, err := NewValue(int(binary.BigEndian.Uint16(req.Data[2:4])))
-	values := []Value{v}
-
-	if err != nil {
-		return values, IllegalDataValueError
+	var v Value
+	values := make([]Value, 1)
+	if err := v.UnmarshalBinary(req.Data[2:4], Unsigned); err != nil {
+		return values, fmt.Errorf("failed to hande write single coil request: %v", err)
 	}
+
 	if v.Get() != 0 {
 		if err := v.Set(1); err != nil {
 			return values, IllegalDataValueError
 		}
 	}
+	values[0] = v
 
 	return values, nil
 }
 
 func (h WriteHandler) handleWriteSingleRegister(req Request) ([]Value, error) {
-	v, err := NewValue(int(binary.BigEndian.Uint16(req.Data[2:4])))
-	values := []Value{v}
-
-	if err != nil {
-		return values, IllegalDataValueError
+	var v Value
+	if err := v.UnmarshalBinary(req.Data[2:4], h.signedness); err != nil {
+		return []Value{}, fmt.Errorf("failed to hande write single register request: %v", err)
 	}
-
-	return values, nil
+	return []Value{v}, nil
 }
 
 func (h WriteHandler) handleWriteMultipleRegisters(req Request) ([]Value, error) {
@@ -191,10 +205,10 @@ func (h WriteHandler) handleWriteMultipleRegisters(req Request) ([]Value, error)
 		return values, IllegalDataValueError
 	}
 
-	for i := 0; i <= quantity; i += 2 {
-		v, err := NewValue(int(binary.BigEndian.Uint16(req.Data[offset+i : offset+i+2])))
-		if err != nil {
-			return values, IllegalDataValueError
+	for i := 0; i < quantity*2; i += 2 {
+		var v Value
+		if err := v.UnmarshalBinary(req.Data[offset+i:offset+i+2], h.signedness); err != nil {
+			return values, fmt.Errorf("failed to hande write multiple registers request: %v", err)
 		}
 
 		values = append(values, v)

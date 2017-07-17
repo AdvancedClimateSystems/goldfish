@@ -1,12 +1,13 @@
 package modbus
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func TesTValue(t *testing.T) {
+func TestNewValue(t *testing.T) {
 	tests := []struct {
 		value    int
 		expected []byte
@@ -24,6 +25,24 @@ func TesTValue(t *testing.T) {
 		bytes, err := rv.MarshalBinary()
 		assert.Nil(t, err)
 		assert.Equal(t, test.expected, bytes)
+	}
+}
+
+func TestValueSet(t *testing.T) {
+	tests := []struct {
+		value    int
+		expected error
+	}{
+		{-9, nil},
+		{-129431, errors.New("-129431 doesn't fit in 16 bytes")},
+		{12, nil},
+		{73892, errors.New("73892 doesn't fit in 16 bytes")},
+	}
+
+	for _, test := range tests {
+		var v Value
+		err := v.Set(test.value)
+		assert.Equal(t, test.expected, err)
 	}
 }
 

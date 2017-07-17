@@ -40,8 +40,8 @@ func handleReadCoils(unitID, start, quantity int) ([]modbus.Value, error) {
 // [31, 298, 1999].
 func handleRegisters(unitID, start, quantity int) ([]modbus.Value, error) {
 	registers := make([]modbus.Value, quantity)
-	for i := 0; i <= quantity; i++ {
-		v, err := modbus.NewValue(i)
+	for i := 0; i < quantity; i++ {
+		v, err := modbus.NewValue(i + start)
 		if err != nil {
 			return registers, modbus.SlaveDeviceFailureError
 		}
@@ -53,6 +53,10 @@ func handleRegisters(unitID, start, quantity int) ([]modbus.Value, error) {
 }
 
 func handleWriteRegisters(unitID, start int, values []modbus.Value) error {
+	for i, value := range values {
+		fmt.Printf("[%d]: %d\n", i+start, value.Get())
+	}
+
 	return nil
 }
 
@@ -75,8 +79,9 @@ func main() {
 
 	s.Handle(modbus.ReadCoils, modbus.NewReadHandler(handleReadCoils))
 	s.Handle(modbus.ReadHoldingRegisters, modbus.NewReadHandler(handleRegisters))
-	s.Handle(modbus.WriteSingleCoil, modbus.NewWriteHandler(handleWriteCoils))
-	s.Handle(modbus.WriteSingleRegister, modbus.NewWriteHandler(handleWriteRegisters))
+	s.Handle(modbus.WriteSingleCoil, modbus.NewWriteHandler(handleWriteCoils, modbus.Signed))
+	s.Handle(modbus.WriteSingleRegister, modbus.NewWriteHandler(handleWriteRegisters, modbus.Signed))
+	s.Handle(modbus.WriteMultipleRegisters, modbus.NewWriteHandler(handleWriteRegisters, modbus.Signed))
 
 	s.Listen()
 }
