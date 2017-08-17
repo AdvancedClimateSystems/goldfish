@@ -57,6 +57,11 @@ func (s *Server) handleConn(conn io.ReadWriteCloser) error {
 	for {
 		buf, err := s.readMessage(r)
 		if err != nil {
+			// An EOF error indicates the connection did not send new data. This
+			// means the connection can be closed, but its not an error in the program.
+			if err == io.EOF {
+				return nil
+			}
 			return fmt.Errorf("failed to read message from connection: %v", err)
 		}
 
@@ -74,7 +79,7 @@ func (s *Server) handleConn(conn io.ReadWriteCloser) error {
 func (s *Server) readMessage(r *bufio.Reader) ([]byte, error) {
 	b, err := r.Peek(6)
 	if err != nil {
-		return nil, fmt.Errorf("failed to peek into message: %v", err)
+		return nil, err
 	}
 	length := binary.BigEndian.Uint16(b[4:6])
 
