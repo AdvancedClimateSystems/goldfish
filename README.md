@@ -1,7 +1,7 @@
-[![GoDoc](https://godoc.org/github.com/AdvancedClimateSystems/goldfish?status.svg)](https://godoc.org/github.com/AdvancedClimateSystems/goldfish)
-[![Build Status](https://travis-ci.org/AdvancedClimateSystems/goldfish.svg?branch=master)](https://travis-ci.org/AdvancedClimateSystems/goldfish)
+![logo](logo.png)
 
-# Goldfish
+Goldfish [![GoDoc](https://godoc.org/github.com/AdvancedClimateSystems/goldfish?status.svg)](https://godoc.org/github.com/AdvancedClimateSystems/goldfish) [![Build Status](https://travis-ci.org/AdvancedClimateSystems/goldfish.svg?branch=master)](https://travis-ci.org/AdvancedClimateSystems/goldfish)
+========
 
 Goldfish is a Go package for creating Modbus TCP servers. See
 [example/main.go][example] for an example.
