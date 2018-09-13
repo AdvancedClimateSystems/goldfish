@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -21,6 +22,15 @@ type RawHandler struct {
 
 func (h RawHandler) ServeModbus(w io.Writer, r Request) {
 	h.handle(w, r)
+}
+
+func TestSetTimeout(t *testing.T) {
+	s, err := NewServer(":")
+	assert.Nil(t, err)
+	assert.Equal(t, 0*time.Second, s.timeout)
+
+	s.SetTimeout(5 * time.Second)
+	assert.Equal(t, 5*time.Second, s.timeout)
 }
 
 // Connection is a struct implemention the io.ReadWriteCloser interface.
