@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"time"
 )
 
 // Server is a Modbus server listens on a port and responds on incoming Modbus
@@ -14,7 +15,7 @@ import (
 type Server struct {
 	l        net.Listener
 	handlers map[uint8]Handler
-
+	timeout  time.Duration
 	ErrorLog *log.Logger
 }
 
@@ -27,24 +28,39 @@ func NewServer(address string) (*Server, error) {
 
 	return &Server{
 		l:        l,
+		timeout:  0,
 		handlers: make(map[uint8]Handler),
 	}, nil
+}
+
+// SetTimeout sets the timeout, which is the maximum duraion a request can take.
+func (s *Server) SetTimeout(t time.Duration) {
+	s.timeout = t
 }
 
 // Listen start listening for requests.
 func (s *Server) Listen() {
 	for {
 		conn, err := s.l.Accept()
+
 		if err != nil {
-			s.logf("golfish: failed to accept incomming connection: %v", err)
+			s.logf("golfish: failed to accept incoming connection: %v", err)
 			continue
+		}
+		if d := s.timeout; d != 0 {
+			if err := conn.SetReadDeadline(time.Now().Add(d)); err != nil {
+				s.logf("goldfish: failed set timeout %v: %v", conn.RemoteAddr(), err)
+				if err := conn.Close(); err != nil {
+					s.logf("goldfish: failed to close connection with %v: %v", conn.RemoteAddr(), err)
+				}
+			}
 		}
 
 		go func() {
 			if err := s.handleConn(conn); err != nil {
 				s.logf("goldfish: unable to handle request from %v: %v", conn.RemoteAddr(), err)
-
 			}
+
 			if err := conn.Close(); err != nil {
 				s.logf("goldfish: failed to close connection with %v: %v", conn.RemoteAddr(), err)
 			}
@@ -56,6 +72,7 @@ func (s *Server) handleConn(conn io.ReadWriteCloser) error {
 	r := bufio.NewReader(conn)
 	for {
 		buf, err := s.readMessage(r)
+
 		if err != nil {
 			// An EOF error indicates the connection did not send new data. This
 			// means the connection can be closed, but its not an error in the program.
