@@ -42,13 +42,18 @@ func (s *Server) SetTimeout(t time.Duration) {
 func (s *Server) Listen() {
 	for {
 		conn, err := s.l.Accept()
-		if d := s.timeout; d != 0 {
-			conn.SetReadDeadline(time.Now().Add(d))
-		}
 
 		if err != nil {
 			s.logf("golfish: failed to accept incoming connection: %v", err)
 			continue
+		}
+		if d := s.timeout; d != 0 {
+			if err := conn.SetReadDeadline(time.Now().Add(d)); err != nil {
+				s.logf("goldfish: failed set timeout %v: %v", conn.RemoteAddr(), err)
+				if err := conn.Close(); err != nil {
+					s.logf("goldfish: failed to close connection with %v: %v", conn.RemoteAddr(), err)
+				}
+			}
 		}
 
 		go func() {
