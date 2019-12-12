@@ -89,6 +89,22 @@ var (
 	GatewayTargetDeviceFailedToRespondError = Error{Code: 11, msg: "gateway target device failed to respond"}
 )
 
+// ErrorMap is a map where all the implemented Modbus errors are stored, which
+// their ID as the key. This makes is easy to ge the error based on the
+// errorcode
+var ErrorMap = map[int]Error{
+	1:  IllegalFunctionError,
+	2:  IllegalAddressError,
+	3:  IllegalDataValueError,
+	4:  SlaveDeviceFailureError,
+	5:  AcknowledgeError,
+	6:  SlaveDeviceBusyError,
+	7:  NegativeAcknowledgeError,
+	8:  MemoryParityError,
+	10: GatewayPathUnavailableError,
+	11: GatewayTargetDeviceFailedToRespondError,
+}
+
 // Value is a value an integer ranging from range of -32768 through 65535.
 type Value struct {
 	v int
